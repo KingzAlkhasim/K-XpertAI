@@ -21,8 +21,6 @@ It is designed to integrate seamlessly with the KingxTech Code Editor, while als
 
 🔐 Secure API – Custom AI API for safe integration without external dependencies.
 
-🎨 Beautiful UI – ChatGPT-like design with:
-
 Emoji support
 
 File & photo upload
