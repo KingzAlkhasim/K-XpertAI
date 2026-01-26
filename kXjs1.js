@@ -553,6 +553,8 @@ function hideProcessing() {
     if (procDiv) procDiv.remove();
 }
 
+
+
 // PART 7 of 8: Media Generation (Image & Video)
 //================================================
 
@@ -569,15 +571,27 @@ function isVideoGenerationRequest(text) {
 
 async function generateImage(prompt) {
     const cleanPrompt = prompt.replace(/generate|create|make|draw|an image of/gi, "").trim();
+    
     if (apiProvider === 'openai') {
         const response = await fetch('https://api.openai.com/v1/images/generations', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
             body: JSON.stringify({ model: "dall-e-3", prompt: cleanPrompt, n: 1, size: "1024x1024" })
         });
+
+        if (!response.ok) {
+            const errorBody = await response.json();
+            throw new Error(errorBody.error?.message || `OpenAI Image Error: ${response.status}`);
+        }
+
         const data = await response.json();
+        // FIXED: Check if data exists before accessing index 0
+        if (!data.data || !data.data[0]) {
+            throw new Error("OpenAI did not return any image data.");
+        }
         return data.data[0].url;
     } else { 
+        // Fallback to Pollinations (Gemini/Free)
         const response = await fetch(`https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}`);
         return response.url;
     }
@@ -586,6 +600,9 @@ async function generateImage(prompt) {
 async function generateVideo(prompt) {
     return await generateImage(prompt + ", cinematic action scene");
 }
+
+
+
 
 // PART 8 of 8: AI API Communication
 //====================================
@@ -598,7 +615,7 @@ async function getAiResponse(text, imageUrl) {
 }
 
 async function callGeminiAPI(text, imageUrl, key) {
-    // FIXED: Using gemini-2.0-flash for better compatibility with v1beta
+    // Using the stable gemini-2.0-flash model
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
     
     const parts = [];
@@ -623,15 +640,19 @@ async function callGeminiAPI(text, imageUrl, key) {
     }
 
     const data = await response.json();
-    if (!data.candidates) return "No response from model.";
+    if (!data.candidates || !data.candidates[0]) {
+        return "The model provided an empty response. Please try again.";
+    }
     return data.candidates[0].content.parts[0].text;
 }
 
 async function callOpenAI(text, imageUrl, key) {
     const messages = [{ role: "system", content: "You are K-XpertAI by kingxTech." }];
+    
     const user_content = [];
     if (text) user_content.push({ type: "text", text: text });
     if (imageUrl) user_content.push({ type: "image_url", image_url: { url: imageUrl } });
+    
     messages.push({ role: "user", content: user_content });
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -640,6 +661,18 @@ async function callOpenAI(text, imageUrl, key) {
         body: JSON.stringify({ model: "gpt-4o", messages: messages, max_tokens: 2000 })
     });
 
+    if (!response.ok) {
+        const errorBody = await response.json();
+        throw new Error(errorBody.error?.message || `OpenAI API Error: ${response.status}`);
+    }
+
     const data = await response.json();
+
+    // FIXED: Check if choices exists before accessing index 0
+    if (!data.choices || !data.choices[0]) {
+        console.error("OpenAI Response Issue:", data);
+        throw new Error("OpenAI returned a response but no message choices. This usually happens with empty responses.");
+    }
+
     return data.choices[0].message.content;
 }
