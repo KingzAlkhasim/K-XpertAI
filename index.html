@@ -17,168 +17,173 @@
 <link href="kXcss.css" rel="stylesheet">
     
 </head>
-<body data-theme="light">
-    <div class="app-container">
-        <header class="header">
-            <div class="logo">
-                <i class="fas fa-robot"></i>
-                <span>K-XpertAI</span>
-            </div>
-            <div class="header-controls">
-                <div class="api-status" id="apiStatus" style="display: none;">
-                    <i class="fas fa-circle"></i>
-                    <span id="apiProvider">Gemini</span>
-                </div>
-                <button class="header-btn" onclick="openSettings()">
-                    <i class="fas fa-cog"></i>
-                    <span>Settings</span>
-                </button>
-                <button class="header-btn" onclick="clearChat()">
-                    <i class="fas fa-trash"></i>
-                    <span>Clear</span>
-                </button>
-                <button class="header-btn" onclick="toggleTheme()">
-                    <i class="fas fa-moon"></i>
-                    <span>Theme</span>
-                </button>
-            </div>
-        </header>
 
-        <div class="chat-container">
-            <div class="chat-messages" id="chatMessages">
-                <div class="welcome-message">
-                    <h2 class="welcome-title">Welcome to K-XpertAI</h2>
-                    <p>I'm K-XpertAI, your intelligent assistant. I can help with conversations, code analysis, and image processing. Image generation is available with OpenAI API keys using DALL-E! Contact The webite company for a guide of the  free API  generaion <a href="https://wa.me/2349032852218?text=Hello%20kingxTech%20how%20can%20i%20generate%20my%20APIKey%3A">Here</a></p>
-                </div>
-            </div>
+<body>
 
-            <div class="input-container">
-                <div class="input-wrapper">
-                    <div class="input-actions">
-                        <button class="input-btn" onclick="document.getElementById('fileInput').click()" title="Upload Image">
-                            <i class="fas fa-image"></i>
-                        </button>
-                        <input type="file" id="fileInput" class="file-input" accept="image/*" onchange="handleFileSelect(event)">
-                    </div>
-                    <textarea 
-                        class="message-input" 
-                        id="messageInput" 
-                        placeholder="Type your message here..."
-                        onkeydown="handleKeyDown(event)"
-                        oninput="autoResize(this)"
-                    ></textarea>
-                    <button class="send-btn" onclick="sendMessage()" id="sendBtn">
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
+<!-- MOBILE SIDEBAR OVERLAY -->
+<div class="sb-overlay" id="sbOverlay" onclick="closeSidebar()"></div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-top">
+    <a class="logo" href="#">
+      <div class="logo-icon" id="sidebarLogo">
+        <img id="logoImg" src="" alt="✳️" onerror="this.style.display='none';this.parentElement.textContent='✳️'"/>
+      </div>
+      <span class="logo-text">K-XpertAI</span>
+    </a>
+    <button class="new-chat-btn" onclick="newChat()">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      New conversation
+    </button>
+  </div>
+  <div class="sidebar-label">Recent</div>
+  <div class="chat-list" id="chatList"></div>
+  <div class="sidebar-bottom">
+    <button class="model-badge" onclick="openSettings()">
+      <div class="status-dot"></div>
+      <span class="model-lbl" id="modelLbl">K-XpertAI (Free)</span>
+      <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <button class="menu-btn" onclick="openSidebar()">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <span class="topbar-title" id="chatTitle">K-XpertAI — Intelligent Assistant</span>
+    <div class="topbar-right">
+      <button class="prov-pill" onclick="openSettings()">
+        <div class="status-dot" style="width:6px;height:6px;animation:none"></div>
+        <span id="provLbl">Free</span>
+      </button>
+      <button class="icon-btn" title="Clear" onclick="clearChat()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      </button>
+      <button class="icon-btn" title="Settings" onclick="openSettings()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      </button>
     </div>
+  </div>
 
-    <!-- API Setup Modal -->
-    <div class="modal" id="apiModal">
-        <div class="modal-content">
-            <h2 class="modal-title">Choose Your AI Provider</h2>
-            <p>Select your preferred AI provider to get started:</p>
-            
-            <div class="api-selection">
-                <div class="api-option selected" onclick="selectProvider('gemini')">
-                    <input type="radio" name="provider" value="gemini" checked>
-                    <div>
-                        <strong>Google Gemini</strong> (Default)
-                        <div style="font-size: 12px; color: var(--text-secondary);">Free tier available, great for text and analysis</div>
-                    </div>
-                </div>
-                <div class="api-option" onclick="selectProvider('openai')">
-                    <input type="radio" name="provider" value="openai">
-                    <div>
-                        <strong>OpenAI GPT</strong>
-                        <div style="font-size: 12px; color: var(--text-secondary);">Includes DALL-E image generation</div>
-                    </div>
-                </div>
-            </div>
+  <div class="chat-area" id="chatArea">
+    <div class="msgs-wrap" id="msgs"></div>
+  </div>
 
-            <div id="apiKeySection">
-                <input type="password" class="modal-input" id="apiKeyInput" placeholder="Enter your API key...">
-                <p style="font-size: 12px; color: var(--text-secondary);">API key is required to proceed</p>
-            </div>
-
-            <div class="modal-buttons">
-                <button class="modal-btn secondary" onclick="skipSetup()">Continue Without API</button>
-                <button class="modal-btn primary" onclick="saveApiSetup()">Continue</button>
-            </div>
+  <div class="input-area">
+    <div class="input-wrap">
+      <div class="input-box">
+        <div class="input-row">
+          <textarea id="inp" rows="1" placeholder="Ask K-XpertAI anything…"
+            onkeydown="handleKey(event)" oninput="resize(this)"></textarea>
+          <button class="send-btn" id="sendBtn" onclick="send()">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
         </div>
-    </div>
-
-    <!-- Settings Modal -->
-    <div class="modal" id="settingsModal" style="display: none;">
-        <div class="modal-content">
-            <h2 class="modal-title">Settings</h2>
-            <div class="settings-panel">
-                <div class="setting-group">
-                    <label class="setting-label">AI Provider</label>
-                    <div class="setting-description">Choose your preferred AI service</div>
-                    <div class="api-selection">
-                        <div class="api-option" onclick="selectSettingsProvider('gemini')" id="settingsGemini">
-                            <input type="radio" name="settingsProvider" value="gemini">
-                            <div>
-                                <strong>Google Gemini</strong>
-                                <div style="font-size: 12px; color: var(--text-secondary);">Text and image analysis only</div>
-                            </div>
-                        </div>
-                        <div class="api-option" onclick="selectSettingsProvider('openai')" id="settingsOpenAI">
-                            <input type="radio" name="settingsProvider" value="openai">
-                            <div>
-                                <strong>OpenAI GPT</strong>
-                                <div style="font-size: 12px; color: var(--text-secondary);">Includes DALL-E image generation</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="setting-group">
-                    <label class="setting-label">API Key</label>
-                    <div class="setting-description">Enter your API key for the selected provider</div>
-                    <input type="password" class="modal-input" id="settingsApiKey" placeholder="Enter API key...">
-                </div>
-
-                <div class="setting-group">
-                    <label class="setting-label">Theme</label>
-                    <div class="setting-description">Choose your preferred theme</div>
-                    <div class="api-selection">
-                        <div class="api-option" onclick="setThemeFromSettings('light')" id="lightTheme">
-                            <input type="radio" name="theme" value="light">
-                            <div><strong>Light Theme</strong></div>
-                        </div>
-                        <div class="api-option" onclick="setThemeFromSettings('dark')" id="darkTheme">
-                            <input type="radio" name="theme" value="dark">
-                            <div><strong>Dark Theme</strong></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="modal-buttons">
-                <button class="modal-btn secondary" onclick="closeSettings()">Cancel</button>
-                <button class="modal-btn primary" onclick="saveSettings()">Save Changes</button>
-            </div>
+        <div class="input-footer">
+          <div class="input-tools">
+            <button class="tool-btn" onclick="document.getElementById('fileIn').click()" title="Attach image or file">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+              Attach
+            </button>
+            <button class="tool-btn" onclick="triggerImgGen()" title="Generate an AI image">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              Image
+            </button>
+            <button class="tool-btn" onclick="triggerVidGen()" title="Generate an AI video">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+              Video
+            </button>
+            <input type="file" id="fileIn" hidden accept="image/*,.txt,.js,.ts,.py,.html,.css,.json,.md,.jsx,.tsx" onchange="handleFile(this)"/>
+          </div>
+          <span class="input-hint"><kbd>Enter</kbd> send &nbsp;·&nbsp; <kbd>⇧Enter</kbd> newline</span>
         </div>
+      </div>
     </div>
+  </div>
+</main>
 
-
-<div id="imagePreviewModal" class="modal-overlay" onclick="closeImagePreview()">
-    <span class="close-btn" onclick="closeImagePreview()">&times;</span>
-    <img class="modal-content" id="fullImagePreview">
+<!-- SETTINGS MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-title">⚙️ Settings</div>
+    <div class="modal-sub">K-XpertAI works for free by default. Add your own API key to switch providers.</div>
+    <div class="free-notice">
+      <span style="font-size:16px;flex-shrink:0">✅</span>
+      <span><strong style="color:#a3e6c0">Free tier active</strong> — Chat without any API key using our built-in AI. Your own key unlocks Gemini &amp; GPT.</span>
+    </div>
+    <label class="field-lbl">AI Provider</label>
+    <div class="prov-grid">
+      <button class="prov-opt sel" id="opt-default" onclick="pickProv('default')">
+        <div class="prov-name">⚡ Default</div>
+        <div class="prov-note">Free · No key</div>
+      </button>
+      <button class="prov-opt" id="opt-gemini" onclick="pickProv('gemini')">
+        <div class="prov-name">🌐 Gemini</div>
+        <div class="prov-note">Google AI</div>
+      </button>
+      <button class="prov-opt" id="opt-openai" onclick="pickProv('openai')">
+        <div class="prov-name">🤖 OpenAI</div>
+        <div class="prov-note">GPT-4o</div>
+      </button>
+    </div>
+    <label class="field-lbl">API Key <span class="opt-tag">optional</span></label>
+    <input class="modal-input" type="password" id="apiIn" placeholder="Paste your Gemini or OpenAI key…"/>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveSettings()">Save &amp; Apply</button>
+    </div>
+  </div>
 </div>
 
+<!-- GEN MODAL (image / video) -->
+<div class="modal-overlay" id="genModal">
+  <div class="gen-modal">
+    <div class="modal-title" id="genModalTitle">🎨 Generate Image</div>
+    <div class="modal-sub" id="genModalSub">Describe the image you want to create.</div>
+    <textarea class="modal-input" id="genPromptIn" rows="3" placeholder="A futuristic city at night with neon lights…" style="resize:vertical;min-height:80px;margin-bottom:0"></textarea>
+    <div style="margin-top:10px;font-size:11px;color:var(--text-muted)">
+      💡 Free image generation via <strong style="color:var(--text-dim)">Pollinations.ai</strong>. For video, describe your scene clearly.
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeGenModal()">Cancel</button>
+      <button class="btn-primary" id="genModalBtn" onclick="submitGen()">Generate ✨</button>
+    </div>
+  </div>
+</div>
 
-<script>
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/sw.js");
-}
-</script>
+<!-- VOICE PANEL -->
+<div class="voice-panel" id="voicePanel">
+  <button class="voice-panel-close" onclick="closeVoicePanel()">✕</button>
+  <div class="voice-panel-title">🔊 Voice Settings</div>
+  <div class="voice-list" id="voiceList">
+    <div style="font-size:12px;color:var(--text-muted);padding:6px">Loading voices…</div>
+  </div>
+  <div class="voice-slider-row">
+    <label>Speed</label>
+    <input type="range" id="rateSlider" min="0.5" max="2" step="0.1" value="1" oninput="document.getElementById('rateVal').textContent=this.value"/>
+    <span id="rateVal" style="font-size:11px;color:var(--text-dim);width:26px">1</span>
+  </div>
+  <div class="voice-slider-row">
+    <label>Pitch</label>
+    <input type="range" id="pitchSlider" min="0.5" max="2" step="0.1" value="1" oninput="document.getElementById('pitchVal').textContent=this.value"/>
+    <span id="pitchVal" style="font-size:11px;color:var(--text-dim);width:26px">1</span>
+  </div>
+</div>
 
-    <script src="kXjs1.js">
+<div class="toast" id="toast"></div>
+
+
+<script src="kXjs1.js">
         // Your JavaScript code goes here - use the enhanced JavaScript from the previous artifact
     </script>
 </body>
