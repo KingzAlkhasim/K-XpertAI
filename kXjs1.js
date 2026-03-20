@@ -45,7 +45,7 @@ function getSteps(t) {
 function renderWelcome() {
   document.getElementById('msgs').innerHTML = `
     <div class="welcome">
-      <div class="welcome-icon">⚡</div>
+      <div class="welcome-icon">✳️</div>
       <h1>How can I help you today?</h1>
       <p>I'm K-XpertAI — your intelligent coding assistant by KingxTech. Debug, explain, generate, and review code instantly.</p>
       <div class="sugs">
