@@ -1,23 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>K-XpertAI - Your AI Assistant</title>
-
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K-XpertAI - Your AI Assistant</title>
 <meta name="google-site-verification" content="-pOwu_HKfCUGRi02jFjMC8tlb0xJc3xpN3SXWRajfQs" />
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#4f46e5">
-
-   <link rel="apple-touch-icon" href="/android-launchericon-192x192.png">
- <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+<meta name="theme-color" content="#2563eb">
+<link rel="apple-touch-icon" href="/android-launchericon-192x192.png">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
 <link href="kXcss.css" rel="stylesheet">
-    
 </head>
-
 <body>
 
 <!-- MOBILE SIDEBAR OVERLAY -->
@@ -91,7 +87,7 @@
         </div>
         <div class="input-footer">
           <div class="input-tools">
-            <button class="tool-btn" onclick="document.getElementById('fileIn').click()" title="Attach image or file">
+            <button class="tool-btn" onclick="document.getElementById('fileIn').click()" title="Attach image, video, audio, PDF, code file…">
               <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
               Attach
             </button>
@@ -103,7 +99,10 @@
               <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
               Video
             </button>
-            <input type="file" id="fileIn" hidden accept="image/*,.txt,.js,.ts,.py,.html,.css,.json,.md,.jsx,.tsx" onchange="handleFile(this)"/>
+            <!-- Expanded accept: images, video, audio, PDF, zip, and code files -->
+            <input type="file" id="fileIn" hidden
+              accept="image/*,video/*,audio/*,application/pdf,application/zip,application/x-zip-compressed,.txt,.js,.ts,.py,.html,.css,.json,.md,.jsx,.tsx,.csv,.xml,.yml,.yaml,.sh,.php,.rb,.java,.c,.cpp,.cs,.go,.rs,.swift,.docx,.xlsx"
+              onchange="handleFile(this)"/>
           </div>
           <span class="input-hint"><kbd>Enter</kbd> send &nbsp;·&nbsp; <kbd>⇧Enter</kbd> newline</span>
         </div>
@@ -152,7 +151,7 @@
     <div class="modal-sub" id="genModalSub">Describe the image you want to create.</div>
     <textarea class="modal-input" id="genPromptIn" rows="3" placeholder="A futuristic city at night with neon lights…" style="resize:vertical;min-height:80px;margin-bottom:0"></textarea>
     <div style="margin-top:10px;font-size:11px;color:var(--text-muted)">
-      💡 Free image generation via <strong style="color:var(--text-dim)">Pollinations.ai</strong>. For video, describe your scene clearly.
+      💡 Free image &amp; video generation via <strong style="color:var(--text-dim)">Pollinations.ai</strong>. Describe your scene clearly for best results.
     </div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeGenModal()">Cancel</button>
@@ -181,10 +180,6 @@
 </div>
 
 <div class="toast" id="toast"></div>
-
-
-<script src="kXjs1.js">
-        // Your JavaScript code goes here - use the enhanced JavaScript from the previous artifact
-    </script>
+<script src="kXjs1.js"></script>
 </body>
 </html>
