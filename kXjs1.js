@@ -1,4 +1,3 @@
-
 /* ═══════════════════════════════════════════════════════════
    STATE
 ═══════════════════════════════════════════════════════════ */
@@ -6,18 +5,29 @@ let cfg = { provider: 'default', apiKey: '' };
 let busy = false;
 let pendProv = 'default';
 let genMode = 'image';
-let attachedImage = null;
+let attachedFile = null; // now handles image, video, audio, pdf, etc.
 let activeSid = null;
 
 // Sessions: { id, label, hist, msgsHTML }
 let sessions = [];
 
-try { const s = localStorage.getItem('kx_v3'); if(s){ const p=JSON.parse(s); cfg=p.cfg||cfg; sessions=p.sessions||[]; } } catch(e){}
+try {
+  const s = localStorage.getItem('kx_v3');
+  if (s) {
+    const p = JSON.parse(s);
+    cfg = p.cfg || cfg;
+    sessions = p.sessions || [];
+  }
+} catch(e) {}
 
 function saveState() {
-  // Save sessions (strip heavy base64 image data from history before storing)
-  const lean = sessions.map(s => ({ ...s, msgsHTML: document.getElementById('msgs').innerHTML }));
-  try { localStorage.setItem('kx_v3', JSON.stringify({ cfg, sessions: lean })); } catch(e){}
+  const lean = sessions.map(s => ({
+    ...s,
+    msgsHTML: activeSid === s.id
+      ? document.getElementById('msgs').innerHTML
+      : s.msgsHTML
+  }));
+  try { localStorage.setItem('kx_v3', JSON.stringify({ cfg, sessions: lean })); } catch(e) {}
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -30,12 +40,13 @@ const STEPS = {
   review:  ['Reading your code…','Checking for bugs & anti-patterns…','Analyzing performance…','Drafting feedback…'],
   default: ['Understanding your request…','Thinking through the answer…','Preparing response…'],
 };
+
 function getSteps(t) {
   t = t.toLowerCase();
   if (/debug|error|fix|bug|crash|exception|undefined|null|traceback/.test(t)) return STEPS.debug;
-  if (/explain|how|what|why|difference|when|where|mean|tell me/.test(t))     return STEPS.explain;
-  if (/write|create|generate|build|make|implement|add|code/.test(t))         return STEPS.write;
-  if (/review|improve|optimize|refactor|better|check|suggest/.test(t))       return STEPS.review;
+  if (/explain|how|what|why|difference|when|where|mean|tell me/.test(t)) return STEPS.explain;
+  if (/write|create|generate|build|make|implement|add|code/.test(t)) return STEPS.write;
+  if (/review|improve|optimize|refactor|better|check|suggest/.test(t)) return STEPS.review;
   return STEPS.default;
 }
 
@@ -44,29 +55,29 @@ function getSteps(t) {
 ═══════════════════════════════════════════════════════════ */
 function renderWelcome() {
   document.getElementById('msgs').innerHTML = `
-    <div class="welcome">
-      <div class="welcome-icon">✳️</div>
-      <h1>How can I help you today?</h1>
-      <p>I'm K-XpertAI — your intelligent coding assistant by KingxTech. Debug, explain, generate, and review code instantly.</p>
-      <div class="sugs">
-        <button class="sug" onclick="send('Debug this error: TypeError: Cannot read properties of undefined reading length')">
-          <div class="sug-icon">🐛</div><div class="sug-title">Debug my code</div>
-          <div class="sug-sub">Paste an error — I'll trace & fix it</div>
-        </button>
-        <button class="sug" onclick="send('Explain how async/await works in JavaScript with simple examples')">
-          <div class="sug-icon">💡</div><div class="sug-title">Explain a concept</div>
-          <div class="sug-sub">Clear, step-by-step with examples</div>
-        </button>
-        <button class="sug" onclick="send('Write a Python REST API with Flask that handles user authentication')">
-          <div class="sug-icon">✏️</div><div class="sug-title">Generate code</div>
-          <div class="sug-sub">Describe what you need built</div>
-        </button>
-        <button class="sug" onclick="send('Review my code and suggest performance improvements')">
-          <div class="sug-icon">🔍</div><div class="sug-title">Code review</div>
-          <div class="sug-sub">Expert feedback instantly</div>
-        </button>
-      </div>
-    </div>`;
+  <div class="welcome">
+    <div class="welcome-icon">✳️</div>
+    <h1>How can I help you today?</h1>
+    <p>I'm K-XpertAI — your intelligent coding assistant by KingxTech. Debug, explain, generate, and review code instantly.</p>
+    <div class="sugs">
+      <button class="sug" onclick="send('Debug this error: TypeError: Cannot read properties of undefined reading length')">
+        <div class="sug-icon">🐛</div><div class="sug-title">Debug my code</div>
+        <div class="sug-sub">Paste an error — I'll trace & fix it</div>
+      </button>
+      <button class="sug" onclick="send('Explain how async/await works in JavaScript with simple examples')">
+        <div class="sug-icon">💡</div><div class="sug-title">Explain a concept</div>
+        <div class="sug-sub">Clear, step-by-step with examples</div>
+      </button>
+      <button class="sug" onclick="send('Write a Python REST API with Flask that handles user authentication')">
+        <div class="sug-icon">✏️</div><div class="sug-title">Generate code</div>
+        <div class="sug-sub">Describe what you need built</div>
+      </button>
+      <button class="sug" onclick="send('Review my code and suggest performance improvements')">
+        <div class="sug-icon">🔍</div><div class="sug-title">Code review</div>
+        <div class="sug-sub">Expert feedback instantly</div>
+      </button>
+    </div>
+  </div>`;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -75,7 +86,6 @@ function renderWelcome() {
 function currentSession() { return sessions.find(s => s.id === activeSid) || null; }
 
 function newChat() {
-  // Save current msgs to active session before switching
   if (activeSid) {
     const s = currentSession();
     if (s) s.msgsHTML = document.getElementById('msgs').innerHTML;
@@ -91,15 +101,12 @@ function newChat() {
 function clearChat() { newChat(); }
 
 function switchToSession(id) {
-  // Save current msgs first
   if (activeSid) {
     const cur = currentSession();
     if (cur) cur.msgsHTML = document.getElementById('msgs').innerHTML;
   }
-
   const s = sessions.find(x => x.id === id);
   if (!s) return;
-
   activeSid = id;
   document.getElementById('chatTitle').textContent = s.label;
   document.getElementById('msgs').innerHTML = s.msgsHTML || '';
@@ -110,7 +117,7 @@ function switchToSession(id) {
 
 function createSession(label, firstMsg) {
   const id = Date.now();
-  const s = { id, label: label.slice(0, 44), hist: [{ role:'user', content: firstMsg }], msgsHTML: '' };
+  const s = { id, label: label.slice(0, 44), hist: [{ role: 'user', content: firstMsg }], msgsHTML: '' };
   sessions.unshift(s);
   activeSid = id;
   document.getElementById('chatTitle').textContent = s.label;
@@ -161,58 +168,55 @@ async function send(preText) {
   if (busy) return;
   const inp = document.getElementById('inp');
   const txt = (preText || inp.value).trim();
-  const img = attachedImage;
-
-  if (!txt && !img) return;
+  const file = attachedFile;
+  if (!txt && !file) return;
   if (!preText) { inp.value = ''; inp.style.height = 'auto'; }
-  clearImg();
-
+  clearAttach();
   document.querySelector('.welcome')?.remove();
-
   busy = true;
   document.getElementById('sendBtn').disabled = true;
 
-  // Create session on first message
-  if (!activeSid) createSession(txt || 'Image', txt || '');
+  if (!activeSid) createSession(txt || (file ? file.name : 'File'), txt || '');
   else if (txt) pushHist('user', txt);
 
-  appendUserWithImg(txt, img);
-
+  appendUserWithFile(txt, file);
   const aiBlock = appendAI();
-  const steps = img
+
+  // Choose thinking steps
+  const steps = file && file.type.startsWith('image/')
     ? ['Examining the image…','Identifying objects and context…','Formulating analysis…']
+    : file && file.type.startsWith('video/')
+    ? ['Loading video info…','Analyzing your request…','Preparing response…']
     : getSteps(txt);
+
   await animThink(aiBlock, steps);
 
   try {
     let reply = '';
     const h = getActiveHist();
+    const isImage = file && file.type.startsWith('image/');
 
-    if (img) {
-      if (cfg.provider === 'gemini' && cfg.apiKey)      reply = await callGeminiVision(txt, img, h);
-      else if (cfg.provider === 'openai' && cfg.apiKey) reply = await callOpenAIVision(txt, img);
-      else                                               reply = await callDefaultVision(txt, img, h);
+    if (isImage) {
+      if (cfg.provider === 'gemini' && cfg.apiKey) reply = await callGeminiVision(txt, file, h);
+      else if (cfg.provider === 'openai' && cfg.apiKey) reply = await callOpenAIVision(txt, file);
+      else reply = await callDefaultVision(txt, file, h);
     } else {
-      if (cfg.provider === 'gemini' && cfg.apiKey)      reply = await callGemini(txt, h);
+      if (cfg.provider === 'gemini' && cfg.apiKey) reply = await callGemini(txt, h);
       else if (cfg.provider === 'openai' && cfg.apiKey) reply = await callOpenAI(txt, h);
-      else                                               reply = await callDefault(txt, h);
+      else reply = await callDefault(txt, h);
     }
 
     doneThink(aiBlock);
     await showReply(aiBlock, reply);
     pushHist('assistant', reply);
-
   } catch(err) {
     doneThink(aiBlock);
     setHTML(aiBlock, `<span style="color:#e05555">⚠️ ${esc(err.message)}</span>`);
   }
 
   showActions(aiBlock);
-
-  // Save HTML snapshot
   if (currentSession()) currentSession().msgsHTML = document.getElementById('msgs').innerHTML;
   saveState();
-
   busy = false;
   document.getElementById('sendBtn').disabled = false;
   document.getElementById('inp').focus();
@@ -223,10 +227,10 @@ async function send(preText) {
 ═══════════════════════════════════════════════════════════ */
 async function callDefault(txt, h) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method:'POST', headers:{'Content-Type':'application/json'},
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model:'claude-sonnet-4-20250514', max_tokens:1000,
-      system:'You are K-XpertAI, an expert AI coding assistant built by KingxTech (founded by Alkhassim Lawal Umar Bello). Specialise in debugging, code generation, code review, and clear explanations. Be concise and accurate. Format code with markdown fences.',
+      model: 'claude-sonnet-4-20250514', max_tokens: 1000,
+      system: 'You are K-XpertAI, an expert AI coding assistant built by KingxTech (founded by Alkhassim Lawal Umar Bello). Specialise in debugging, code generation, code review, and clear explanations. Be concise and accurate. Format code with markdown fences.',
       messages: h,
     })
   });
@@ -238,83 +242,88 @@ async function callDefault(txt, h) {
 async function callGemini(txt, h) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${cfg.apiKey}`;
   const body = {
-    contents: h.map(m => ({ role: m.role==='assistant'?'model':'user', parts:[{text:m.content}] })),
-    systemInstruction:{parts:[{text:'You are K-XpertAI, a smart coding assistant by KingxTech. Be concise, helpful. Format code with markdown fences.'}]},
-    generationConfig:{temperature:0.7,maxOutputTokens:2048}
+    contents: h.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
+    systemInstruction: { parts: [{ text: 'You are K-XpertAI, a smart coding assistant by KingxTech. Be concise, helpful. Format code with markdown fences.' }] },
+    generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
   };
-  const res = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const d = await res.json();
-  if (!res.ok||d.error) throw new Error(d.error?.message||`Gemini error ${res.status}`);
-  return d.candidates?.[0]?.content?.parts?.[0]?.text||'No response.';
+  if (!res.ok || d.error) throw new Error(d.error?.message || `Gemini error ${res.status}`);
+  return d.candidates?.[0]?.content?.parts?.[0]?.text || 'No response.';
 }
 
 async function callOpenAI(txt, h) {
-  const res = await fetch('https://api.openai.com/v1/chat/completions',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':`Bearer ${cfg.apiKey}`},
-    body:JSON.stringify({
-      model:'gpt-4o-mini',
-      messages:[{role:'system',content:'You are K-XpertAI, a smart coding assistant by KingxTech. Be concise, helpful. Format code in markdown.'},...h],
-      max_tokens:2048,temperature:0.7
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.apiKey}` },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'system', content: 'You are K-XpertAI, a smart coding assistant by KingxTech. Be concise, helpful. Format code in markdown.' }, ...h],
+      max_tokens: 2048, temperature: 0.7
     })
   });
   const d = await res.json();
-  if (!res.ok) throw new Error(d.error?.message||`OpenAI error ${res.status}`);
-  return d.choices?.[0]?.message?.content||'No response.';
+  if (!res.ok) throw new Error(d.error?.message || `OpenAI error ${res.status}`);
+  return d.choices?.[0]?.message?.content || 'No response.';
 }
 
 async function callDefaultVision(txt, img, h) {
   const userContent = [
-    {type:'image',source:{type:'base64',media_type:img.mimeType,data:img.base64}},
-    {type:'text',text:txt||'What is in this image? Describe it in detail.'}
+    { type: 'image', source: { type: 'base64', media_type: img.mimeType, data: img.base64 } },
+    { type: 'text', text: txt || 'What is in this image? Describe it in detail.' }
   ];
-  const res = await fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      model:'claude-sonnet-4-20250514',max_tokens:1000,
-      system:'You are K-XpertAI, an expert AI assistant by KingxTech. Analyse images and answer questions clearly.',
-      messages:[...h.slice(0,-1),{role:'user',content:userContent}],
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514', max_tokens: 1000,
+      system: 'You are K-XpertAI, an expert AI assistant by KingxTech. Analyse images and answer questions clearly.',
+      messages: [...h.slice(0, -1), { role: 'user', content: userContent }],
     })
   });
   const d = await res.json();
-  if (!res.ok) throw new Error(d.error?.message||`API error ${res.status}`);
-  return d.content?.[0]?.text||'No response.';
+  if (!res.ok) throw new Error(d.error?.message || `API error ${res.status}`);
+  return d.content?.[0]?.text || 'No response.';
 }
 
 async function callGeminiVision(txt, img, h) {
-  const url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${cfg.apiKey}`;
-  const body={contents:[{role:'user',parts:[
-    {inline_data:{mime_type:img.mimeType,data:img.base64}},
-    {text:txt||'What is in this image? Describe it in detail.'}
-  ]}],generationConfig:{temperature:0.7,maxOutputTokens:2048}};
-  const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  const d=await res.json();
-  if (!res.ok||d.error) throw new Error(d.error?.message||`Gemini error ${res.status}`);
-  return d.candidates?.[0]?.content?.parts?.[0]?.text||'No response.';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${cfg.apiKey}`;
+  const body = {
+    contents: [{ role: 'user', parts: [
+      { inline_data: { mime_type: img.mimeType, data: img.base64 } },
+      { text: txt || 'What is in this image? Describe it in detail.' }
+    ]}],
+    generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+  };
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const d = await res.json();
+  if (!res.ok || d.error) throw new Error(d.error?.message || `Gemini error ${res.status}`);
+  return d.candidates?.[0]?.content?.parts?.[0]?.text || 'No response.';
 }
 
 async function callOpenAIVision(txt, img) {
-  const res=await fetch('https://api.openai.com/v1/chat/completions',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':`Bearer ${cfg.apiKey}`},
-    body:JSON.stringify({model:'gpt-4o',messages:[
-      {role:'system',content:'You are K-XpertAI, a smart assistant by KingxTech. Analyse images accurately.'},
-      {role:'user',content:[
-        {type:'image_url',image_url:{url:`data:${img.mimeType};base64,${img.base64}`}},
-        {type:'text',text:txt||'What is in this image?'}
-      ]}
-    ],max_tokens:2048})
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.apiKey}` },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: 'You are K-XpertAI, a smart assistant by KingxTech. Analyse images accurately.' },
+        { role: 'user', content: [
+          { type: 'image_url', image_url: { url: `data:${img.mimeType};base64,${img.base64}` } },
+          { type: 'text', text: txt || 'What is in this image?' }
+        ]}
+      ], max_tokens: 2048
+    })
   });
-  const d=await res.json();
-  if (!res.ok) throw new Error(d.error?.message||`OpenAI error ${res.status}`);
-  return d.choices?.[0]?.message?.content||'No response.';
+  const d = await res.json();
+  if (!res.ok) throw new Error(d.error?.message || `OpenAI error ${res.status}`);
+  return d.choices?.[0]?.message?.content || 'No response.';
 }
 
 /* ═══════════════════════════════════════════════════════════
-   LOGO CONFIG — Change AI_LOGO_URL to your logo image path
-   e.g. AI_LOGO_URL = './logo.png'  or  '' to use emoji ⚡
+   LOGO CONFIG
 ═══════════════════════════════════════════════════════════ */
-const AI_LOGO_URL = ''; // ← PUT YOUR LOGO URL HERE
+const AI_LOGO_URL = '';
 
 function initLogo() {
   const img = document.getElementById('logoImg');
@@ -334,7 +343,7 @@ function getAiAvatarHTML() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   TEXT TO SPEECH — Fixed with Chrome keepalive + voice panel
+   TEXT TO SPEECH
 ═══════════════════════════════════════════════════════════ */
 let selectedVoice = null;
 let ttsRate = 1.0;
@@ -350,7 +359,6 @@ function getVoices() {
       voices = window.speechSynthesis.getVoices();
       if (voices.length) resolve(voices);
     };
-    // Fallback timeout
     setTimeout(() => resolve(window.speechSynthesis.getVoices()), 1500);
   });
 }
@@ -360,31 +368,25 @@ async function openVoicePanel() {
   panel.classList.add('open');
   const list = document.getElementById('voiceList');
   const voices = await getVoices();
-
   if (!voices.length) {
     list.innerHTML = `<div style="font-size:12px;color:var(--text-muted);padding:6px">No voices found on this device.</div>`;
     return;
   }
-
-  // Group: English first, then others
   const eng = voices.filter(v => v.lang.startsWith('en'));
   const other = voices.filter(v => !v.lang.startsWith('en'));
   const sorted = [...eng, ...other];
-
   list.innerHTML = sorted.map((v, i) => `
     <button class="voice-opt ${selectedVoice?.name === v.name ? 'sel' : ''}"
       onclick="selectVoice(${i})" data-idx="${i}">
       <span style="flex:1">${v.name}</span>
       <span style="font-size:10px;opacity:.5;flex-shrink:0">${v.lang}</span>
     </button>`).join('');
-
-  // Store sorted list for lookup
   window._sortedVoices = sorted;
 }
 
 function selectVoice(idx) {
   selectedVoice = window._sortedVoices[idx];
-  document.querySelectorAll('.voice-opt').forEach((b,i) => b.classList.toggle('sel', i===idx));
+  document.querySelectorAll('.voice-opt').forEach((b, i) => b.classList.toggle('sel', i === idx));
   toast(`Voice: ${selectedVoice.name}`);
 }
 
@@ -394,53 +396,35 @@ function closeVoicePanel() {
 
 function speakMsg(btn) {
   const bubble = btn.closest('.msg').querySelector('.ai-bubble');
-  const text = bubble.innerText.replace(/Copy response|Read aloud|Stop|Voice/g,'').trim();
+  const text = bubble.innerText.replace(/Copy response|Read aloud|Stop|Voice/g, '').trim();
   if (!text) return;
-
-  // Stop if already speaking
-  if (btn.classList.contains('speaking')) {
-    stopSpeech();
-    return;
-  }
-
-  // Stop any other speech
+  if (btn.classList.contains('speaking')) { stopSpeech(); return; }
   stopSpeech();
-
-  ttsRate  = parseFloat(document.getElementById('rateSlider').value) || 1.0;
+  ttsRate = parseFloat(document.getElementById('rateSlider').value) || 1.0;
   ttsPitch = parseFloat(document.getElementById('pitchSlider').value) || 1.0;
-
   const utt = new SpeechSynthesisUtterance(text);
-  utt.rate  = ttsRate;
+  utt.rate = ttsRate;
   utt.pitch = ttsPitch;
-  utt.lang  = 'en-US';
-
-  // Pick voice
+  utt.lang = 'en-US';
   if (selectedVoice) {
     utt.voice = selectedVoice;
   } else {
     const voices = window.speechSynthesis.getVoices();
     utt.voice = voices.find(v => v.name.includes('Google') && v.lang === 'en-US')
-             || voices.find(v => v.lang.startsWith('en'))
-             || voices[0];
+      || voices.find(v => v.lang.startsWith('en'))
+      || voices[0];
   }
-
   activeSpeakBtn = btn;
   btn.classList.add('speaking');
   btn.innerHTML = stopIcon() + ' Stop';
-
-  // Chrome bug: speech stops after ~15s — keepalive pause/resume trick
   ttsKeepAlive = setInterval(() => {
     if (window.speechSynthesis.speaking) {
       window.speechSynthesis.pause();
       window.speechSynthesis.resume();
     }
   }, 10000);
-
   utt.onend = () => stopSpeech();
-  utt.onerror = (e) => {
-    if (e.error !== 'interrupted') stopSpeech();
-  };
-
+  utt.onerror = (e) => { if (e.error !== 'interrupted') stopSpeech(); };
   window.speechSynthesis.speak(utt);
 }
 
@@ -466,7 +450,6 @@ function stopIcon() {
   return `<svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>`;
 }
 
-// Close voice panel on outside click
 document.addEventListener('click', e => {
   const panel = document.getElementById('voicePanel');
   if (panel.classList.contains('open') && !panel.contains(e.target) && !e.target.closest('.act-btn')) {
@@ -475,21 +458,19 @@ document.addEventListener('click', e => {
 });
 
 /* ═══════════════════════════════════════════════════════════
-   IMAGE GENERATION — Pollinations.ai (free) or DALL-E 3
+   IMAGE GENERATION — Pollinations.ai (fixed)
 ═══════════════════════════════════════════════════════════ */
 async function generateImage(prompt) {
   if (busy) return;
   busy = true;
   document.getElementById('sendBtn').disabled = true;
   document.querySelector('.welcome')?.remove();
-
   if (!activeSid) createSession('🎨 ' + prompt, prompt);
 
-  appendUserWithImg(`🎨 Generate image: ${prompt}`, null);
+  appendUserWithFile(`🎨 Generate image: ${prompt}`, null);
   const aiBlock = appendAI();
-  await animThink(aiBlock, ['Reading your prompt…','Composing the visual…','Rendering pixels…','Finalising image…']);
+  await animThink(aiBlock, ['Reading your prompt…', 'Composing the visual…', 'Rendering pixels…', 'Finalising image…']);
   doneThink(aiBlock);
-
   const b = aiBlock.querySelector('.ai-bubble');
   b.classList.remove('stream-cur');
   b.innerHTML = `<div class="media-loading"><div class="spin"></div> Generating image — this may take 10–20 seconds…</div>`;
@@ -497,21 +478,20 @@ async function generateImage(prompt) {
 
   try {
     let imgUrl = '';
-
     if (cfg.provider === 'openai' && cfg.apiKey) {
-      // DALL-E 3
       const res = await fetch('https://api.openai.com/v1/images/generations', {
         method: 'POST',
-        headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${cfg.apiKey}` },
-        body: JSON.stringify({ model:'dall-e-3', prompt, n:1, size:'1024x1024' })
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.apiKey}` },
+        body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size: '1024x1024' })
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error?.message || 'DALL-E error');
       imgUrl = d.data[0].url;
     } else {
-      // Pollinations.ai — free, NO preloading (just set src, let browser load it)
+      // Pollinations.ai — use /prompt/ endpoint with GET (most reliable)
       const seed = Math.floor(Math.random() * 99999);
-      imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=768&seed=${seed}&nologo=true`;
+      const encoded = encodeURIComponent(prompt);
+      imgUrl = `https://image.pollinations.ai/prompt/${encoded}?width=1024&height=768&seed=${seed}&nologo=true&enhance=true`;
     }
 
     b.innerHTML = `
@@ -519,13 +499,11 @@ async function generateImage(prompt) {
       <img src="${imgUrl}" class="gen-img" alt="${esc(prompt)}"
         onclick="window.open('${imgUrl}','_blank')"
         title="Click to open full size"
-        onerror="this.outerHTML='<p style=color:#e05555>⚠️ Image failed to load. The service may be busy — try again.</p>'"
+        onerror="this.outerHTML='<p style=color:#e05555>⚠️ Image failed to load. Try again or rephrase your prompt.</p>'"
         onload="this.style.opacity='1'"
         style="opacity:0;transition:opacity .4s"/>
       <div style="font-size:11px;color:var(--text-muted);margin-top:6px">🖼 Click to open full size · Right-click → Save image</div>`;
-
     pushHist('assistant', `[Generated image: "${prompt}"]`);
-
   } catch(err) {
     b.innerHTML = `<span style="color:#e05555">⚠️ ${esc(err.message)}</span>`;
   }
@@ -538,44 +516,44 @@ async function generateImage(prompt) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   VIDEO GENERATION — Pollinations.ai (free MP4)
+   VIDEO GENERATION — Pollinations.ai (fixed)
 ═══════════════════════════════════════════════════════════ */
 async function generateVideo(prompt) {
   if (busy) return;
   busy = true;
   document.getElementById('sendBtn').disabled = true;
   document.querySelector('.welcome')?.remove();
-
   if (!activeSid) createSession('🎬 ' + prompt, prompt);
 
-  appendUserWithImg(`🎬 Generate video: ${prompt}`, null);
+  appendUserWithFile(`🎬 Generate video: ${prompt}`, null);
   const aiBlock = appendAI();
-  await animThink(aiBlock, ['Reading your scene…','Planning motion…','Generating frames…','Encoding video…']);
+  await animThink(aiBlock, ['Reading your scene…', 'Planning motion…', 'Generating frames…', 'Encoding video…']);
   doneThink(aiBlock);
-
   const b = aiBlock.querySelector('.ai-bubble');
   b.classList.remove('stream-cur');
-  b.innerHTML = `<div class="media-loading"><div class="spin"></div> Generating video — please wait 20–45 seconds…</div>`;
+  b.innerHTML = `<div class="media-loading"><div class="spin"></div> Generating video — please wait 20–60 seconds…</div>`;
   scroll();
 
   try {
-    // Pollinations video — direct URL, browser handles loading
     const seed = Math.floor(Math.random() * 99999);
-    const videoUrl = `https://video.pollinations.ai/prompt/${encodeURIComponent(prompt)}?seed=${seed}&nologo=true`;
+    const encoded = encodeURIComponent(prompt);
+    // Pollinations video API — correct endpoint
+    const videoUrl = `https://video.pollinations.ai/prompt/${encoded}?seed=${seed}&nologo=true`;
 
+    // Pre-fetch to trigger generation, then display
     b.innerHTML = `
       <p style="color:var(--text-muted);font-size:13px;margin-bottom:8px">Generated video for: <em>"${esc(prompt)}"</em></p>
       <video class="gen-vid" controls autoplay muted playsinline loop
-        src="${videoUrl}"
-        onerror="this.outerHTML='<p style=color:#e05555>⚠️ Video failed to load — the service may be busy. <a href=\\'${videoUrl}\\' target=\\'_blank\\' style=\\'color:var(--accent)\\'>Open directly ↗</a></p>'">
+        onerror="this.outerHTML='<p style=color:#e05555>⚠️ Video failed — service may be busy. <a href=\\'${videoUrl}\\' target=\\'_blank\\' style=\\'color:var(--accent)\\'>Open directly ↗</a></p>'">
+        <source src="${videoUrl}" type="video/mp4">
+        Your browser does not support the video tag.
       </video>
       <div style="display:flex;gap:12px;margin-top:8px;align-items:center;flex-wrap:wrap">
-        <span style="font-size:11px;color:var(--text-muted)">🎬 Video loads progressively · may take ~30s</span>
+        <span style="font-size:11px;color:var(--text-muted)">🎬 Video loads progressively · may take ~30–60s</span>
         <a href="${videoUrl}" target="_blank" style="font-size:11px;color:var(--accent);text-decoration:none;flex-shrink:0">↗ Open / Download</a>
       </div>`;
 
     pushHist('assistant', `[Generated video: "${prompt}"]`);
-
   } catch(err) {
     b.innerHTML = `<span style="color:#e05555">⚠️ ${esc(err.message)}</span>`;
   }
@@ -588,97 +566,183 @@ async function generateVideo(prompt) {
 }
 
 function triggerImgGen() {
-  genMode='image';
-  document.getElementById('genModalTitle').textContent='🎨 Generate Image';
-  document.getElementById('genModalSub').textContent='Describe the image you want to create.';
-  document.getElementById('genPromptIn').placeholder='A futuristic city at night with neon lights…';
-  document.getElementById('genModalBtn').textContent='Generate ✨';
-  document.getElementById('genPromptIn').value=document.getElementById('inp').value;
+  genMode = 'image';
+  document.getElementById('genModalTitle').textContent = '🎨 Generate Image';
+  document.getElementById('genModalSub').textContent = 'Describe the image you want to create.';
+  document.getElementById('genPromptIn').placeholder = 'A futuristic city at night with neon lights…';
+  document.getElementById('genModalBtn').textContent = 'Generate ✨';
+  document.getElementById('genPromptIn').value = document.getElementById('inp').value;
   document.getElementById('genModal').classList.add('open');
-  setTimeout(()=>document.getElementById('genPromptIn').focus(),200);
+  setTimeout(() => document.getElementById('genPromptIn').focus(), 200);
 }
 
 function triggerVidGen() {
-  genMode='video';
-  document.getElementById('genModalTitle').textContent='🎬 Generate Video';
-  document.getElementById('genModalSub').textContent='Describe the scene or motion you want to animate.';
-  document.getElementById('genPromptIn').placeholder='Ocean waves crashing on a rocky cliff at sunset…';
-  document.getElementById('genModalBtn').textContent='Generate 🎬';
-  document.getElementById('genPromptIn').value=document.getElementById('inp').value;
+  genMode = 'video';
+  document.getElementById('genModalTitle').textContent = '🎬 Generate Video';
+  document.getElementById('genModalSub').textContent = 'Describe the scene or motion you want to animate.';
+  document.getElementById('genPromptIn').placeholder = 'Ocean waves crashing on a rocky cliff at sunset…';
+  document.getElementById('genModalBtn').textContent = 'Generate 🎬';
+  document.getElementById('genPromptIn').value = document.getElementById('inp').value;
   document.getElementById('genModal').classList.add('open');
-  setTimeout(()=>document.getElementById('genPromptIn').focus(),200);
+  setTimeout(() => document.getElementById('genPromptIn').focus(), 200);
 }
 
 function closeGenModal() { document.getElementById('genModal').classList.remove('open'); }
 
 async function submitGen() {
-  const prompt=document.getElementById('genPromptIn').value.trim();
+  const prompt = document.getElementById('genPromptIn').value.trim();
   if (!prompt) { toast('Please enter a prompt first'); return; }
   closeGenModal();
-  if (genMode==='image') await generateImage(prompt);
+  if (genMode === 'image') await generateImage(prompt);
   else await generateVideo(prompt);
 }
 
 /* ═══════════════════════════════════════════════════════════
-   IMAGE ATTACH
+   FILE ATTACH — images, video, audio, PDF, code, zip, etc.
 ═══════════════════════════════════════════════════════════ */
 function handleFile(input) {
-  const file = input.files[0]; if(!file) return;
+  const file = input.files[0];
+  if (!file) return;
 
-  if (file.type.startsWith('image/')) {
+  const isImage = file.type.startsWith('image/');
+  const isVideo = file.type.startsWith('video/');
+  const isAudio = file.type.startsWith('audio/');
+  const isPDF   = file.type === 'application/pdf';
+  const isText  = file.type.startsWith('text/') || /\.(js|ts|py|html|css|json|md|jsx|tsx|txt|csv|xml|yml|yaml|sh|php|rb|java|c|cpp|cs|go|rs|swift)$/i.test(file.name);
+
+  if (isImage) {
     const reader = new FileReader();
     reader.onload = e => {
       const dataUrl = e.target.result;
-      attachedImage = { base64: dataUrl.split(',')[1], mimeType: file.type, name: file.name, dataUrl };
-      let pill = document.getElementById('imgPill');
-      if (!pill) {
-        pill = document.createElement('div');
-        pill.id = 'imgPill';
-        pill.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 14px 0;';
-        document.querySelector('.input-row').after(pill);
-      }
-      pill.innerHTML = `
-        <img src="${dataUrl}" style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid var(--border);flex-shrink:0"/>
-        <span style="font-size:12px;color:var(--text-dim);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(file.name)}</span>
-        <button onclick="clearImg()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:15px;padding:2px 6px;border-radius:4px" title="Remove">✕</button>`;
+      attachedFile = { base64: dataUrl.split(',')[1], mimeType: file.type, name: file.name, dataUrl, kind: 'image' };
+      showAttachPill(
+        `<img src="${dataUrl}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;border:1px solid var(--border);flex-shrink:0"/>`,
+        file.name
+      );
     };
     reader.readAsDataURL(file);
-  } else {
+
+  } else if (isVideo) {
+    attachedFile = { name: file.name, mimeType: file.type, kind: 'video', file };
+    showAttachPill(
+      `<span style="font-size:20px;flex-shrink:0">🎬</span>`,
+      file.name
+    );
+    // Append video info to textarea for AI context
+    const ta = document.getElementById('inp');
+    ta.value = `[Attached video: ${file.name} (${formatBytes(file.size)})] ` + ta.value;
+    resize(ta);
+
+  } else if (isAudio) {
+    attachedFile = { name: file.name, mimeType: file.type, kind: 'audio', file };
+    showAttachPill(
+      `<span style="font-size:20px;flex-shrink:0">🎵</span>`,
+      file.name
+    );
+    const ta = document.getElementById('inp');
+    ta.value = `[Attached audio: ${file.name} (${formatBytes(file.size)})] ` + ta.value;
+    resize(ta);
+
+  } else if (isPDF) {
+    attachedFile = { name: file.name, mimeType: file.type, kind: 'pdf', file };
+    showAttachPill(
+      `<span style="font-size:20px;flex-shrink:0">📄</span>`,
+      file.name
+    );
+    const ta = document.getElementById('inp');
+    ta.value = `[Attached PDF: ${file.name} (${formatBytes(file.size)})] ` + ta.value;
+    resize(ta);
+
+  } else if (isText) {
     const reader = new FileReader();
     reader.onload = e => {
       const ta = document.getElementById('inp');
       const ext = file.name.split('.').pop().toLowerCase();
-      ta.value = `Here is my ${ext} file (${file.name}):\n\`\`\`${ext}\n${e.target.result.slice(0,4000)}\n\`\`\`\n` + ta.value;
+      ta.value = `Here is my ${ext} file (${file.name}):\n\`\`\`${ext}\n${e.target.result.slice(0, 6000)}\n\`\`\`\n` + ta.value;
       resize(ta); ta.focus();
+      toast(`📎 ${file.name} added to message`);
     };
     reader.readAsText(file);
+
+  } else {
+    // Any other file (zip, exe, docx, etc.) — show as attachment note
+    attachedFile = { name: file.name, mimeType: file.type, kind: 'file', file };
+    showAttachPill(
+      `<span style="font-size:20px;flex-shrink:0">📎</span>`,
+      file.name
+    );
+    const ta = document.getElementById('inp');
+    ta.value = `[Attached file: ${file.name} (${file.type || 'unknown'}, ${formatBytes(file.size)})] ` + ta.value;
+    resize(ta);
   }
+
   input.value = '';
 }
 
-function clearImg() {
-  attachedImage = null;
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function showAttachPill(iconHTML, name) {
+  let pill = document.getElementById('imgPill');
+  if (!pill) {
+    pill = document.createElement('div');
+    pill.id = 'imgPill';
+    pill.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 14px 0;';
+    document.querySelector('.input-row').after(pill);
+  }
+  pill.innerHTML = `
+    ${iconHTML}
+    <span style="font-size:12px;color:var(--text-dim);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</span>
+    <button onclick="clearAttach()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:15px;padding:2px 6px;border-radius:4px" title="Remove">✕</button>`;
+}
+
+function clearAttach() {
+  attachedFile = null;
   document.getElementById('imgPill')?.remove();
 }
+
+// Keep old name working too
+function clearImg() { clearAttach(); }
 
 /* ═══════════════════════════════════════════════════════════
    DOM HELPERS
 ═══════════════════════════════════════════════════════════ */
-function appendUserWithImg(text, img) {
+function appendUserWithFile(text, file) {
   const m = document.getElementById('msgs');
   const d = document.createElement('div');
   d.className = 'msg msg-user';
-  const imgHTML = img ? `<img src="${img.dataUrl}" class="img-preview" alt="${esc(img.name)}"/>` : '';
+
+  let mediaHTML = '';
+  if (file) {
+    if (file.kind === 'image') {
+      mediaHTML = `<img src="${file.dataUrl}" class="img-preview" alt="${esc(file.name)}"/>`;
+    } else if (file.kind === 'video') {
+      mediaHTML = `<div class="file-chip">🎬 ${esc(file.name)}</div>`;
+    } else if (file.kind === 'audio') {
+      mediaHTML = `<div class="file-chip">🎵 ${esc(file.name)}</div>`;
+    } else if (file.kind === 'pdf') {
+      mediaHTML = `<div class="file-chip">📄 ${esc(file.name)}</div>`;
+    } else {
+      mediaHTML = `<div class="file-chip">📎 ${esc(file.name)}</div>`;
+    }
+  }
+
   d.innerHTML = `
-    <div class="bubble">${imgHTML}${text ? esc(text).replace(/\n/g,'<br>') : ''}</div>
+    <div class="bubble">${mediaHTML}${text ? esc(text).replace(/\n/g, '<br>') : ''}</div>
     <div class="msg-actions">
-      <button class="act-btn" onclick="copyTxt(this,${JSON.stringify(text||'')})">
+      <button class="act-btn" onclick="copyTxt(this,${JSON.stringify(text || '')})">
         <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
         Copy
       </button>
     </div>`;
   m.appendChild(d); scroll();
 }
+
+// Keep old name working
+function appendUserWithImg(text, img) { appendUserWithFile(text, img ? { ...img, kind: 'image' } : null); }
 
 function appendAI() {
   const m = document.getElementById('msgs');
@@ -716,21 +780,21 @@ function appendAI() {
 async function animThink(block, steps) {
   const lbl = block.querySelector('.think-lbl');
   const stps = block.querySelector('.think-steps');
-  for (let i=0;i<steps.length;i++) {
+  for (let i = 0; i < steps.length; i++) {
     lbl.textContent = steps[i];
     const s = document.createElement('div');
     s.className = 'think-step';
     s.textContent = steps[i];
     stps.appendChild(s); scroll();
-    await sleep(350 + Math.random()*250);
+    await sleep(350 + Math.random() * 250);
   }
 }
 
 function doneThink(block) {
   const dots = block.querySelector('.think-dots');
-  const lbl  = block.querySelector('.think-lbl');
+  const lbl = block.querySelector('.think-lbl');
   if (dots) dots.classList.add('done');
-  if (lbl)  lbl.textContent = 'Done thinking';
+  if (lbl) lbl.textContent = 'Done thinking';
   setTimeout(() => {
     block.querySelector('.think-body')?.classList.remove('open');
     block.querySelector('.think-chev')?.classList.remove('open');
@@ -740,50 +804,48 @@ function doneThink(block) {
 async function showReply(block, text) {
   const b = block.querySelector('.ai-bubble');
   b.classList.remove('stream-cur');
-
   const segments = [];
   const codeRx = /```(\w*)\n?([\s\S]*?)```/g;
-  let last=0, m2;
-  while ((m2=codeRx.exec(text))!==null) {
-    if (m2.index>last) segments.push({type:'text',content:text.slice(last,m2.index)});
-    segments.push({type:'code',lang:m2[1]||'code',content:m2[2].trim()});
-    last=m2.index+m2[0].length;
+  let last = 0, m2;
+  while ((m2 = codeRx.exec(text)) !== null) {
+    if (m2.index > last) segments.push({ type: 'text', content: text.slice(last, m2.index) });
+    segments.push({ type: 'code', lang: m2[1] || 'code', content: m2[2].trim() });
+    last = m2.index + m2[0].length;
   }
-  if (last<text.length) segments.push({type:'text',content:text.slice(last)});
-  b.innerHTML='';
-
+  if (last < text.length) segments.push({ type: 'text', content: text.slice(last) });
+  b.innerHTML = '';
   for (const seg of segments) {
-    if (seg.type==='code') {
-      const pre=document.createElement('pre');
-      const hdr=document.createElement('div');
-      hdr.className='code-hdr';
-      hdr.innerHTML=`<span class="code-lang">${seg.lang}</span><button class="copy-code" onclick="cpCode(this)">📋 Copy</button>`;
-      const code=document.createElement('code');
+    if (seg.type === 'code') {
+      const pre = document.createElement('pre');
+      const hdr = document.createElement('div');
+      hdr.className = 'code-hdr';
+      hdr.innerHTML = `<span class="code-lang">${seg.lang}</span><button class="copy-code" onclick="cpCode(this)">📋 Copy</button>`;
+      const code = document.createElement('code');
       pre.appendChild(hdr); pre.appendChild(code); b.appendChild(pre);
-      const lines=seg.content.split('\n');
-      for (let li=0;li<lines.length;li++) {
-        const line=lines[li];
-        for (let ci=0;ci<line.length;ci++) {
-          code.textContent+=line[ci];
-          if (ci%4===0) {scroll();await sleep(8);}
+      const lines = seg.content.split('\n');
+      for (let li = 0; li < lines.length; li++) {
+        const line = lines[li];
+        for (let ci = 0; ci < line.length; ci++) {
+          code.textContent += line[ci];
+          if (ci % 4 === 0) { scroll(); await sleep(8); }
         }
-        if (li<lines.length-1) code.textContent+='\n';
+        if (li < lines.length - 1) code.textContent += '\n';
         scroll(); await sleep(18);
       }
     } else {
-      const chars=seg.content;
-      let buf='';
-      const span=document.createElement('span');
+      const chars = seg.content;
+      let buf = '';
+      const span = document.createElement('span');
       b.appendChild(span);
-      for (let i=0;i<chars.length;i++) {
-        buf+=chars[i];
-        span.innerHTML=md(buf);
-        const ch=chars[i];
-        let delay=12;
-        if (ch==='.'||ch==='!'||ch==='?') delay=55;
-        else if (ch===','||ch===';'||ch===':') delay=28;
-        else if (ch==='\n') delay=35;
-        if (i%3===0) {scroll();await sleep(delay);}
+      for (let i = 0; i < chars.length; i++) {
+        buf += chars[i];
+        span.innerHTML = md(buf);
+        const ch = chars[i];
+        let delay = 12;
+        if (ch === '.' || ch === '!' || ch === '?') delay = 55;
+        else if (ch === ',' || ch === ';' || ch === ':') delay = 28;
+        else if (ch === '\n') delay = 35;
+        if (i % 3 === 0) { scroll(); await sleep(delay); }
       }
     }
   }
@@ -791,14 +853,14 @@ async function showReply(block, text) {
 }
 
 function setHTML(block, html) {
-  const b=block.querySelector('.ai-bubble');
+  const b = block.querySelector('.ai-bubble');
   b.classList.remove('stream-cur');
-  b.innerHTML=html;
+  b.innerHTML = html;
 }
 
 function showActions(block) {
-  const a=block.querySelector('.msg-actions');
-  if (a) a.style.display='flex';
+  const a = block.querySelector('.msg-actions');
+  if (a) a.style.display = 'flex';
 }
 
 function toggleThink(head) {
@@ -810,19 +872,19 @@ function toggleThink(head) {
    MARKDOWN
 ═══════════════════════════════════════════════════════════ */
 function md(t) {
-  t=t.replace(/```(\w*)\n?([\s\S]*?)```/g,(_,lang,code)=>{
-    const l=lang||'code';
+  t = t.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    const l = lang || 'code';
     return `<pre><div class="code-hdr"><span class="code-lang">${l}</span><button class="copy-code" onclick="cpCode(this)">📋 Copy</button></div><code>${esc(code.trim())}</code></pre>`;
   });
-  t=t.replace(/`([^`\n]+)`/g,'<code>$1</code>');
-  t=t.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
-  t=t.replace(/\*(.*?)\*/g,'<em>$1</em>');
-  t=t.replace(/^### (.+)$/gm,'<strong style="font-size:14px">$1</strong>');
-  t=t.replace(/^## (.+)$/gm,'<strong style="font-size:15px">$1</strong>');
-  t=t.replace(/^# (.+)$/gm,'<strong style="font-size:16px">$1</strong>');
-  t=t.replace(/^[\-\*] (.+)$/gm,'<li>$1</li>');
-  t=t.replace(/(<li>.*<\/li>)/gs,'<ul>$1</ul>');
-  t=t.split(/\n\n+/).map(p=>{p=p.trim();if(!p||p.startsWith('<'))return p;return`<p>${p.replace(/\n/g,'<br>')}</p>`;}).join('');
+  t = t.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  t = t.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  t = t.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  t = t.replace(/^### (.+)$/gm, '<strong style="font-size:14px">$1</strong>');
+  t = t.replace(/^## (.+)$/gm, '<strong style="font-size:15px">$1</strong>');
+  t = t.replace(/^# (.+)$/gm, '<strong style="font-size:16px">$1</strong>');
+  t = t.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
+  t = t.replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>');
+  t = t.split(/\n\n+/).map(p => { p = p.trim(); if (!p || p.startsWith('<')) return p; return `<p>${p.replace(/\n/g, '<br>')}</p>`; }).join('');
   return t;
 }
 
@@ -833,6 +895,7 @@ function openSidebar() {
   document.getElementById('sidebar').classList.add('open');
   document.getElementById('sbOverlay').classList.add('open');
 }
+
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sbOverlay').classList.remove('open');
@@ -842,57 +905,64 @@ function closeSidebar() {
    SETTINGS
 ═══════════════════════════════════════════════════════════ */
 function openSettings() {
-  pendProv=cfg.provider;
-  document.getElementById('apiIn').value=cfg.apiKey;
-  document.querySelectorAll('.prov-opt').forEach(o=>o.classList.remove('sel'));
-  (document.getElementById('opt-'+cfg.provider)||document.getElementById('opt-default')).classList.add('sel');
+  pendProv = cfg.provider;
+  document.getElementById('apiIn').value = cfg.apiKey;
+  document.querySelectorAll('.prov-opt').forEach(o => o.classList.remove('sel'));
+  (document.getElementById('opt-' + cfg.provider) || document.getElementById('opt-default')).classList.add('sel');
   document.getElementById('modal').classList.add('open');
 }
+
 function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
 function pickProv(p) {
-  pendProv=p;
-  document.querySelectorAll('.prov-opt').forEach(o=>o.classList.remove('sel'));
-  (document.getElementById('opt-'+p)||document.getElementById('opt-default')).classList.add('sel');
+  pendProv = p;
+  document.querySelectorAll('.prov-opt').forEach(o => o.classList.remove('sel'));
+  (document.getElementById('opt-' + p) || document.getElementById('opt-default')).classList.add('sel');
 }
+
 function saveSettings() {
-  cfg.provider=pendProv;
-  cfg.apiKey=document.getElementById('apiIn').value.trim();
+  cfg.provider = pendProv;
+  cfg.apiKey = document.getElementById('apiIn').value.trim();
   saveState();
   updateUI();
   closeModal();
   toast('Settings saved ✓');
 }
+
 function updateUI() {
-  const lbls={default:'K-XpertAI (Free)',gemini:'Gemini 2.0 Flash',openai:'GPT-4o Mini'};
-  const pills={default:'Free',gemini:'Gemini',openai:'OpenAI'};
-  document.getElementById('modelLbl').textContent=lbls[cfg.provider]||'K-XpertAI';
-  document.getElementById('provLbl').textContent=pills[cfg.provider]||'Free';
+  const lbls = { default: 'K-XpertAI (Free)', gemini: 'Gemini 2.0 Flash', openai: 'GPT-4o Mini' };
+  const pills = { default: 'Free', gemini: 'Gemini', openai: 'OpenAI' };
+  document.getElementById('modelLbl').textContent = lbls[cfg.provider] || 'K-XpertAI';
+  document.getElementById('provLbl').textContent = pills[cfg.provider] || 'Free';
 }
 
 /* ═══════════════════════════════════════════════════════════
    UTILS
 ═══════════════════════════════════════════════════════════ */
-function handleKey(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();} }
-function resize(el) { el.style.height='auto';el.style.height=Math.min(el.scrollHeight,180)+'px'; }
-function scroll() { requestAnimationFrame(()=>{const a=document.getElementById('chatArea');a.scrollTop=a.scrollHeight;}); }
-function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
-function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }
+function resize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 180) + 'px'; }
+function scroll() { requestAnimationFrame(() => { const a = document.getElementById('chatArea'); a.scrollTop = a.scrollHeight; }); }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
-function copyTxt(btn,text) {
-  navigator.clipboard.writeText(text).then(()=>{const o=btn.innerHTML;btn.textContent='✓ Copied';setTimeout(()=>btn.innerHTML=o,1500);});
+function copyTxt(btn, text) {
+  navigator.clipboard.writeText(text).then(() => { const o = btn.innerHTML; btn.textContent = '✓ Copied'; setTimeout(() => btn.innerHTML = o, 1500); });
 }
+
 function cpCode(btn) {
-  const code=btn.closest('pre').querySelector('code').innerText;
-  navigator.clipboard.writeText(code).then(()=>{const o=btn.innerHTML;btn.textContent='✓ Copied';setTimeout(()=>btn.innerHTML=o,1500);});
+  const code = btn.closest('pre').querySelector('code').innerText;
+  navigator.clipboard.writeText(code).then(() => { const o = btn.innerHTML; btn.textContent = '✓ Copied'; setTimeout(() => btn.innerHTML = o, 1500); });
 }
+
 function copyAI(btn) {
-  const b=btn.closest('.msg').querySelector('.ai-bubble');
-  navigator.clipboard.writeText(b.innerText).then(()=>{const o=btn.innerHTML;btn.textContent='✓ Copied';setTimeout(()=>btn.innerHTML=o,1500);});
+  const b = btn.closest('.msg').querySelector('.ai-bubble');
+  navigator.clipboard.writeText(b.innerText).then(() => { const o = btn.innerHTML; btn.textContent = '✓ Copied'; setTimeout(() => btn.innerHTML = o, 1500); });
 }
+
 function toast(msg) {
-  const t=document.getElementById('toast');
-  t.textContent=msg;t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2200);
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -903,7 +973,6 @@ renderSidebar();
 updateUI();
 initLogo();
 
-// Restore last active session if any
 if (sessions.length > 0) {
   const last = sessions[0];
   activeSid = last.id;
@@ -913,6 +982,6 @@ if (sessions.length > 0) {
   renderSidebar();
 }
 
-document.getElementById('modal').addEventListener('click', e=>{ if(e.target===e.currentTarget) closeModal(); });
-document.getElementById('genModal').addEventListener('click', e=>{ if(e.target===e.currentTarget) closeGenModal(); });
-document.getElementById('genPromptIn').addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submitGen();} });
+document.getElementById('modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+document.getElementById('genModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeGenModal(); });
+document.getElementById('genPromptIn').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitGen(); } });
